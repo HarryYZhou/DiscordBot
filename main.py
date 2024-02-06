@@ -5,6 +5,7 @@ import os
 import random
 import functions
 
+# Load the .env file storing the bot's token details
 dotenv.load_dotenv()
 
 # Store the token in a private .env file
@@ -15,19 +16,23 @@ intents = discord.Intents.default()
 intents.messages = True
 intents.presences = True
 intents.message_content = True
+
 # Must enable guilds to access members in the server
 intents.guilds = True
 
 # Intialize the discord bot with the defined intents
 bot = commands.Bot(command_prefix = '/', intents = intents)
 
-# Log if the discord bot has logged in correctly
+"""
+Function that alerts the administrator that the bot has logged in correctly
+"""
 @bot.event
 async def on_ready():
     print(f'Logged in as {bot.user}')
 
-
-# Test function ("Hello")
+"""
+Function that replies "Hello!" in the chat from the bot if any user writes Hello into the chat
+"""
 @bot.event
 async def on_message(message):
     if message.author == bot.user:
@@ -39,7 +44,9 @@ async def on_message(message):
     # Need to process commands to avoid breaking command functionality
     await bot.process_commands(message)
 
-# Allow owner/admin to shutdown the bot 
+"""
+Function that shuts down the bot, only to be used for testing or if a bug occurs
+"""
 @bot.command(name='shutdown')
 @commands.is_owner()
 async def shutdown(ctx):
@@ -48,8 +55,11 @@ async def shutdown(ctx):
     await bot.close()
     await print("Bot has been logged out")
 
-
-# Elect Team Captains (Random 2 people in the channel), must have at least 2 people in the channel
+"""
+Function that selects 2 team captains from a channel that the user is in if they type in the command.
+If the user is not in a channel, the user will be prompted to join a channel.
+If the user is in a channel, but there is only one user in that specific channel, the user will be mildly insulted.
+"""
 @bot.command(name='elect')
 async def electCaptain(ctx):
     curChannel = functions.findChannel(ctx)
