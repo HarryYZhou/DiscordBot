@@ -23,12 +23,7 @@ intents.guilds = True
 # Intialize the discord bot with the defined intents
 bot = commands.Bot(command_prefix = '/', intents = intents)
 
-# Store Global Captain variables for future use
-bot.electedCaptainA = None
-bot.electedCaptainB = None
-bot.firstPicker = False
-bot.secondPicker = False
-bot.pickMaps = False
+functions.resetGlobals(bot)
 
 # Store MapData
 
@@ -44,6 +39,11 @@ async def on_ready():
 """
 Function that handles all potential message commands sent into the chat
     - If Hello is typed in the chat, the bot will respond with Hello! back
+    - If pick phase initiated:
+        If a captain is currently picking, they will be prompted to ban maps.
+        After there is one map left, that map will be selected as the map to play.
+        If anything other than an index is entered, nothing will happen.
+        Cannot exit pick phase until it is completed. @TODO Allow early termination of pick phase
 """
 @bot.event
 async def on_message(message):
@@ -56,15 +56,28 @@ async def on_message(message):
 
     # Picking map initiated if captains are elected
     if bot.pickMaps == True:
-        if message.author == bot.electedCaptainA:
-            if message.content.startswith('pick'):
-                mapChosen = False
-                mapsAvailable = CS_MAPS.copy()
-                while mapChosen == False:
-                    print("Reached here")
-                    await message.channel.send("Picked map!")
-                    await bot.process_commands(message)
-                    return
+        if bot.firstPicker and bot.secondPicker:
+            if message.author == bot.currentPicker:
+                if bot.pickPhase > 0:               
+                    if message.content in bot.mapPool:
+                        mapBanned = bot.mapPool.pop(message.content)
+                        print(bot.mapPool)
+                        await message.channel.send(f'Banned {mapBanned}')
+                        # When 3 maps are banned, swap pickers
+                        if len(bot.mapPool) == len(CS_MAPS - 3):
+                            functions.swapPickers(bot.firstPicker, bot.secondPicker, bot.currentPicker)
+                        # When 3 maps are banned again, swap pickers
+                        elif len(bot.mapPool) == len(CS_MAPS - 6):
+                            functions.swapPickers(bot.firstPicker, bot.secondPicker, bot.currentPicker)
+                        # When 2 maps are banned, swap pickers
+                        elif len(bot.mapPool) == len(CS_MAPS - 8):
+                            functions.swapPickers(bot.firstPicker, bot.secondPicker, bot.currentPicker)
+                if len(bot.mapPool) == 1:
+                    for key in bot.mapPool:
+                        await message.channel.send(f'The chosen map is {bot.mapPool[key]}!')
+                    # After a map is picked, reset all bot variables to default levels
+                    functions.resetGlobals(bot)
+
 
     # Need to process commands to avoid breaking command functionality
     await bot.process_commands(message)
@@ -84,23 +97,24 @@ async def shutdown(ctx):
 Function that selects 2 team captains from a channel that the user is in if they type in the command.
 If the user is not in a channel, the user will be prompted to join a channel.
 If the user is in a channel, but there is only one user in that specific channel, the user will be mildly insulted.
+Function will reset all bot variables, should be used to elect new captains, new teams and a new map.
 Return - The two elected capatins
 """
 @bot.command(name='elect')
 async def electCaptain(ctx):
+    functions.resetGlobals(bot)
     curChannel = functions.findChannel(ctx)
     if curChannel:
         members = functions.findMembers(curChannel)
-        # Check if channel has at least 2 members
-        # @TODO UNCOMMENT THIS LATER, KEEP IT COMMENTED FOR TESTING PURPOSES
+        # @TODO, fix captain process after testing is completed
         # if len(members) >= 2:
         #     bot.electedCaptainA, bot.electedCaptainB = random.sample(members, 2)
         #     await ctx.send(f'{bot.electedCaptainA.display_name} has been elected as the captain of Alpha team!')
         #     await ctx.send(f'{bot.electedCaptainB.display_name} has been elected as the captain of Bravo team!')
         # else:
         #     await ctx.send('You need to get at least one friend before you elect team captains :(')
-        # @TODO remove line below this
-        bot.electedCaptainA = members[0]
+        bot.electedCaptainA = random.choice(members)
+
         await ctx.send(f'{bot.electedCaptainA.display_name} has been elected as the captain of Alpha team!')
     else:
         await ctx.send('You must first join a channel before you can use this command!')
@@ -126,28 +140,23 @@ async def pickMaps(ctx):
         return
     else:
         if ctx.author == bot.electedCaptainA or ctx.author == bot.electedCaptainB:
-            bot.pickMaps == True
             bot.firstPicker = ctx.author
             # Assign firstPicker and secondPicker depending on who types in the /pick command
             if ctx.author == bot.electedCaptainA:
                 bot.secondPicker == bot.electedCaptainB
             else:
                 bot.secondPicker == bot.selectedCaptainA
-            messageToSend = f"Captain {ctx.author.display_name}, please ban 3 maps from the following list (To ban a map, type the numbers in one by one):\n"
+            bot.pickMaps = True
+            bot.currentPicker = bot.firstPicker
+            bot.pickPhase = 1
+            # Create a dictionary to store all maps and their values
             for i in range(len(CS_MAPS)):
-                
-                messageToSend += f"{i+1}. {CS_MAPS[i]}\n"
+                bot.mapPool[str(i + 1)] = CS_MAPS[i]
+            print(bot.mapPool)
+            messageToSend = f"Captain {ctx.author.display_name}, please ban 3 maps from the following list (To ban a map, type the numbers in one by one):\n"
+            for index, key in bot.mapPool.items():
+                messageToSend += f"{index}. {key}\n"
             await ctx.send(messageToSend)
-
-
-
-
-
-
-"""
-Function that automates the whole team picking process, if possible, elect two captains and then allow those two captains to select team members. Teams are of size 10 for games like CSGO, DOTA2 and OVERWATCH.
-A randomly selected captain will be asked to flip a coin. If their guess is correct, they can choose to pick first or second.
-"""
 
 # Run the discord bot
 bot.run(token)
