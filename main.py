@@ -56,7 +56,7 @@ async def on_message(message):
 
     # Picking map initiated if captains are elected
     if bot.pickMaps == True:
-        if bot.firstPicker and bot.secondPicker:
+        if bot.firstPicker or bot.secondPicker:
             if message.author == bot.currentPicker:
                 if bot.pickPhase > 0:               
                     if message.content in bot.mapPool:
@@ -64,14 +64,17 @@ async def on_message(message):
                         print(bot.mapPool)
                         await message.channel.send(f'Banned {mapBanned}')
                         # When 3 maps are banned, swap pickers
-                        if len(bot.mapPool) == len(CS_MAPS - 3):
-                            functions.swapPickers(bot.firstPicker, bot.secondPicker, bot.currentPicker)
+                        if len(bot.mapPool) == len(CS_MAPS) - 3:
+                            bot.currentPicker = functions.swapPickers(bot.firstPicker, bot.secondPicker, bot.currentPicker)
+                            await message.channel.send(functions.reiteratePool(bot.currentPicker, bot.mapPool))
                         # When 3 maps are banned again, swap pickers
-                        elif len(bot.mapPool) == len(CS_MAPS - 6):
-                            functions.swapPickers(bot.firstPicker, bot.secondPicker, bot.currentPicker)
+                        elif len(bot.mapPool) == len(CS_MAPS) - 6:
+                            bot.currentPicker = functions.swapPickers(bot.firstPicker, bot.secondPicker, bot.currentPicker)
+                            await message.channel.send(functions.reiteratePool(bot.currentPicker, bot.mapPool))
                         # When 2 maps are banned, swap pickers
-                        elif len(bot.mapPool) == len(CS_MAPS - 8):
-                            functions.swapPickers(bot.firstPicker, bot.secondPicker, bot.currentPicker)
+                        elif len(bot.mapPool) == len(CS_MAPS) - 8:
+                            bot.currentPicker = functions.swapPickers(bot.firstPicker, bot.secondPicker, bot.currentPicker)
+                            await message.channel.send(functions.reiteratePool(bot.currentPicker, bot.mapPool))
                 if len(bot.mapPool) == 1:
                     for key in bot.mapPool:
                         await message.channel.send(f'The chosen map is {bot.mapPool[key]}!')
@@ -79,7 +82,7 @@ async def on_message(message):
                     functions.resetGlobals(bot)
 
 
-    # Need to process commands to avoid breaking command functionality
+    # Need to process commands to avoid breaking command functionality\
     await bot.process_commands(message)
 
 """
@@ -107,15 +110,15 @@ async def electCaptain(ctx):
     if curChannel:
         members = functions.findMembers(curChannel)
         # @TODO, fix captain process after testing is completed
-        # if len(members) >= 2:
-        #     bot.electedCaptainA, bot.electedCaptainB = random.sample(members, 2)
-        #     await ctx.send(f'{bot.electedCaptainA.display_name} has been elected as the captain of Alpha team!')
-        #     await ctx.send(f'{bot.electedCaptainB.display_name} has been elected as the captain of Bravo team!')
-        # else:
-        #     await ctx.send('You need to get at least one friend before you elect team captains :(')
-        bot.electedCaptainA = random.choice(members)
+        if len(members) >= 2:
+            bot.electedCaptainA, bot.electedCaptainB = random.sample(members, 2)
+            await ctx.send(f'{bot.electedCaptainA.display_name} has been elected as the captain of Alpha team!')
+            await ctx.send(f'{bot.electedCaptainB.display_name} has been elected as the captain of Bravo team!')
+        else:
+            await ctx.send('You need to get at least one friend before you elect team captains :(')
+        # bot.electedCaptainA = random.choice(members)
 
-        await ctx.send(f'{bot.electedCaptainA.display_name} has been elected as the captain of Alpha team!')
+        # await ctx.send(f'{bot.electedCaptainA.display_name} has been elected as the captain of Alpha team!')
     else:
         await ctx.send('You must first join a channel before you can use this command!')
 
@@ -138,24 +141,24 @@ async def pickMaps(ctx):
     if not bot.electedCaptainA and not bot.electedCaptainB:
         await ctx.send("You must first elect team captains! You can do this by typing in /elect in the chat.")
         return
+    if bot.pickMaps == True:
+        await ctx.send("You are already in the pick phase!")
+        return
     else:
         if ctx.author == bot.electedCaptainA or ctx.author == bot.electedCaptainB:
             bot.firstPicker = ctx.author
             # Assign firstPicker and secondPicker depending on who types in the /pick command
             if ctx.author == bot.electedCaptainA:
-                bot.secondPicker == bot.electedCaptainB
+                bot.secondPicker = bot.electedCaptainB
             else:
-                bot.secondPicker == bot.selectedCaptainA
+                bot.secondPicker = bot.electedCaptainA
             bot.pickMaps = True
             bot.currentPicker = bot.firstPicker
             bot.pickPhase = 1
             # Create a dictionary to store all maps and their values
             for i in range(len(CS_MAPS)):
                 bot.mapPool[str(i + 1)] = CS_MAPS[i]
-            print(bot.mapPool)
-            messageToSend = f"Captain {ctx.author.display_name}, please ban 3 maps from the following list (To ban a map, type the numbers in one by one):\n"
-            for index, key in bot.mapPool.items():
-                messageToSend += f"{index}. {key}\n"
+            messageToSend = functions.reiteratePool(ctx.author, bot.mapPool)
             await ctx.send(messageToSend)
 
 # Run the discord bot
